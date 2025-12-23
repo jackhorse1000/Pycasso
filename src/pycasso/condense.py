@@ -1,3 +1,4 @@
+import ast
 from collections import defaultdict
 from pathlib import Path
 
@@ -5,6 +6,45 @@ from .parse import Entity, EntityType
 
 MAX_SUMMARY_TOKENS = 2000
 TOKEN_TO_WORD_RATIO = 0.75
+
+
+def _extract_imports(file_path: Path) -> list[str]:
+    """Extract top-level imports from a Python file."""
+    try:
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            tree = ast.parse(f.read())
+    except (SyntaxError, OSError):
+        return []
+
+    imports: list[str] = []
+    for node in ast.iter_child_nodes(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                imports.append(alias.name.split(".")[0])
+        elif isinstance(node, ast.ImportFrom):
+            if node.module:
+                imports.append(node.module.split(".")[0])
+    return imports
+
+
+def _extract_docstrings(file_path: Path) -> list[str]:
+    """Extract docstrings from classes and functions."""
+    try:
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            tree = ast.parse(f.read())
+    except (SyntaxError, OSError):
+        return []
+
+    docstrings: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            docstring = ast.get_docstring(node)
+            if docstring:
+                # Take first sentence only
+                first_sentence = docstring.split(".")[0].strip()
+                if first_sentence and len(first_sentence) > 10:
+                    docstrings.append(first_sentence)
+    return docstrings
 
 
 def condense(entities: list[Entity], repo_path: Path, max_symbols: int = 20) -> str:
@@ -45,11 +85,27 @@ def condense(entities: list[Entity], repo_path: Path, max_symbols: int = 20) -> 
 
     top_files = sorted(file_complexity.items(), key=lambda x: x[1], reverse=True)[:5]
 
+    # Collect imports and docstrings from files
+    all_imports: dict[str, int] = defaultdict(int)
+    all_docstrings: list[str] = []
+    for file_path in files:
+        for imp in _extract_imports(file_path):
+            all_imports[imp] += 1
+        all_docstrings.extend(_extract_docstrings(file_path))
+
+    # Filter to external libraries (not local modules)
+    local_modules = {f.stem for f in files}
+    external_imports = [
+        (name, count) for name, count in all_imports.items()
+        if name not in local_modules and not name.startswith("_")
+    ]
+    top_imports = sorted(external_imports, key=lambda x: x[1], reverse=True)[:10]
+
     lines = [
         f"Repository: {repo_name}",
         f"Files: {len(files)} Python files",
         "",
-        "Structure:",
+        "Project Structure:",
     ]
 
     if directories:
@@ -58,15 +114,24 @@ def condense(entities: list[Entity], repo_path: Path, max_symbols: int = 20) -> 
     else:
         lines.append("  - (flat structure)")
 
+    # Add key dependencies
+    if top_imports:
+        lines.extend([
+            "",
+            "Key Dependencies:",
+        ])
+        for name, _ in top_imports:
+            lines.append(f"  - {name}")
+
     lines.extend([
         "",
-        "Entities:",
+        "Code Components:",
         f"  - Classes ({len(classes)}): {', '.join(classes[:max_symbols]) or 'none'}",
         f"  - Functions ({len(functions)}): {', '.join(functions[:max_symbols]) or 'none'}",
-        f"  - Loops: {loop_count}",
-        f"  - Conditionals: {conditional_count}",
+        f"  - Loops: {loop_count} (indicates iterative/data processing patterns)",
+        f"  - Conditionals: {conditional_count} (indicates branching logic)",
         "",
-        "Top modules by complexity:",
+        "Complexity Hotspots (most complex modules):",
     ])
 
     for i, (file_path, complexity) in enumerate(top_files, 1):
@@ -76,12 +141,24 @@ def condense(entities: list[Entity], repo_path: Path, max_symbols: int = 20) -> 
         except ValueError:
             lines.append(f"  {i}. {file_path.name} (complexity: {complexity})")
 
+    # Add docstring insights (what the code actually does)
+    if all_docstrings:
+        unique_docstrings = list(dict.fromkeys(all_docstrings))[:8]  # Dedupe, take top 8
+        lines.extend([
+            "",
+            "What the code does (from docstrings):",
+        ])
+        for doc in unique_docstrings:
+            # Truncate long docstrings
+            doc_text = doc[:80] + "..." if len(doc) > 80 else doc
+            lines.append(f"  - {doc_text}")
+
     all_names = classes + functions
     purpose_words = _extract_purpose_hints(all_names)
     if purpose_words:
         lines.extend([
             "",
-            f"Purpose hints (from names): {', '.join(purpose_words[:10])}",
+            f"Domain concepts (inferred from names): {', '.join(purpose_words[:10])}",
         ])
 
     summary = "\n".join(lines)

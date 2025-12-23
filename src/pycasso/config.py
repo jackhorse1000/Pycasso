@@ -29,8 +29,8 @@ class ExcludeConfig:
 @dataclass
 class AIConfig:
     style: str = "Synthwave / Dark Mode IDE aesthetic, neon colors, abstract geometric"
-    prompt_model: str = "openai/gpt-4o"
-    image_model: str = "google/gemini-2.0-flash-exp:free"
+    prompt_model: str = "anthropic/claude-haiku-4.5"
+    image_model: str = "google/gemini-3-pro-image-preview"
 
 
 @dataclass
