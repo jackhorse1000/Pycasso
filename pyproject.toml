@@ -8,11 +8,14 @@ packages = [{include = "pycasso", from = "src"}]
 
 [tool.poetry.scripts]
 pycasso = "pycasso.cli:main"
+pycasso-ai = "pycasso.cli_ai:main"
 
 [tool.poetry.dependencies]
 python = "^3.11"
 pillow = "^11.0.0"
 tomli = "^2.0.1"
+httpx = "^0.28.1"
+python-dotenv = "^1.2.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"

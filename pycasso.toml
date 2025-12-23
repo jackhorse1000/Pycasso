@@ -13,3 +13,8 @@ conditional = "#FF6B35"   # Orange
 
 [exclude]
 dirs = ["venv", "__pycache__", ".git", ".venv", "node_modules"]
+
+[ai]
+style = "Synthwave / Dark Mode IDE aesthetic, neon colors, abstract geometric"
+prompt_model = "openai/gpt-4.1"
+image_model = "google/gemini-3-pro-image-preview"

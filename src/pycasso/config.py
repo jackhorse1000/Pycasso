@@ -27,10 +27,18 @@ class ExcludeConfig:
 
 
 @dataclass
+class AIConfig:
+    style: str = "Synthwave / Dark Mode IDE aesthetic, neon colors, abstract geometric"
+    prompt_model: str = "openai/gpt-4o"
+    image_model: str = "google/gemini-2.0-flash-exp:free"
+
+
+@dataclass
 class Config:
     canvas: CanvasConfig = field(default_factory=CanvasConfig)
     colors: ColorsConfig = field(default_factory=ColorsConfig)
     exclude: ExcludeConfig = field(default_factory=ExcludeConfig)
+    ai: AIConfig = field(default_factory=AIConfig)
 
 
 def load_config(config_path: Path | None = None) -> Config:
@@ -43,6 +51,7 @@ def load_config(config_path: Path | None = None) -> Config:
     canvas_data = data.get("canvas", {})
     colors_data = data.get("colors", {})
     exclude_data = data.get("exclude", {})
+    ai_data = data.get("ai", {})
 
     canvas = CanvasConfig(
         width=canvas_data.get("width", 3840),
@@ -60,4 +69,11 @@ def load_config(config_path: Path | None = None) -> Config:
     default_dirs = ["venv", "__pycache__", ".git", ".venv", "node_modules"]
     exclude = ExcludeConfig(dirs=exclude_data.get("dirs", default_dirs))
 
-    return Config(canvas=canvas, colors=colors, exclude=exclude)
+    default_style = "Synthwave / Dark Mode IDE aesthetic, neon colors, abstract geometric"
+    ai = AIConfig(
+        style=ai_data.get("style", default_style),
+        prompt_model=ai_data.get("prompt_model", "openai/gpt-4o"),
+        image_model=ai_data.get("image_model", "google/gemini-2.0-flash-exp:free"),
+    )
+
+    return Config(canvas=canvas, colors=colors, exclude=exclude, ai=ai)
