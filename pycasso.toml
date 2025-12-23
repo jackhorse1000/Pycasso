@@ -1,0 +1,15 @@
+# Pycasso Configuration
+
+[canvas]
+width = 3840
+height = 2160
+
+[colors]
+background = "#121212"    # Deep Midnight
+class = "#FF007F"         # Cyber Magenta
+function = "#00FFFF"      # Electric Cyan
+loop = "#F5D300"          # Neon Yellow
+conditional = "#FF6B35"   # Orange
+
+[exclude]
+dirs = ["venv", "__pycache__", ".git", ".venv", "node_modules"]
