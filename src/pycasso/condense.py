@@ -1,11 +1,90 @@
 import ast
+import re
 from collections import defaultdict
 from pathlib import Path
 
 from .parse import Entity, EntityType
 
 MAX_SUMMARY_TOKENS = 2000
+MAX_README_CHARS = 1000
 TOKEN_TO_WORD_RATIO = 0.75
+
+
+def _extract_readme(repo_path: Path) -> str | None:
+    """Extract and summarize README content from the repository.
+    
+    Looks for README.md, README.rst, or README.txt and extracts
+    the most relevant parts (title, description, features).
+    """
+    readme_names = ["README.md", "README.MD", "readme.md", "README.rst", "README.txt", "README"]
+    
+    readme_path = None
+    for name in readme_names:
+        candidate = repo_path / name
+        if candidate.exists():
+            readme_path = candidate
+            break
+    
+    if readme_path is None:
+        return None
+    
+    try:
+        with open(readme_path, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+    except OSError:
+        return None
+    
+    if not content.strip():
+        return None
+    
+    # Clean up markdown formatting
+    # Remove badge links (nested image in link): [![alt](img)](link)
+    content = re.sub(r'\[!\[[^\]]*\]\([^)]*\)\]\([^)]*\)', '', content)
+    # Remove standalone images: ![alt](url)
+    content = re.sub(r'!\[[^\]]*\]\([^)]*\)', '', content)
+    # Remove empty links: [](url)
+    content = re.sub(r'\[\]\([^)]*\)', '', content)
+    # Remove HTML tags
+    content = re.sub(r'<[^>]+>', '', content)
+    # Remove code blocks
+    content = re.sub(r'```[\s\S]*?```', '', content)
+    content = re.sub(r'`[^`]+`', '', content)
+    # Remove links but keep text: [text](url) -> text
+    content = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', content)
+    # Remove markdown header symbols but keep text
+    content = re.sub(r'^#{1,6}\s*', '', content, flags=re.MULTILINE)
+    # Remove horizontal rules
+    content = re.sub(r'^[-*_]{3,}\s*$', '', content, flags=re.MULTILINE)
+    # Remove bullet points but keep text
+    content = re.sub(r'^\s*[-*+]\s+', '', content, flags=re.MULTILINE)
+    # Remove numbered lists but keep text
+    content = re.sub(r'^\s*\d+\.\s+', '', content, flags=re.MULTILINE)
+    # Remove blockquotes
+    content = re.sub(r'^>\s*', '', content, flags=re.MULTILINE)
+    # Remove bold/italic markers
+    content = re.sub(r'\*\*([^*]+)\*\*', r'\1', content)
+    content = re.sub(r'\*([^*]+)\*', r'\1', content)
+    content = re.sub(r'__([^_]+)__', r'\1', content)
+    content = re.sub(r'_([^_]+)_', r'\1', content)
+    # Clean up excessive whitespace
+    content = re.sub(r'\n{3,}', '\n\n', content)
+    content = re.sub(r' {2,}', ' ', content)
+    content = re.sub(r'^\s+$', '', content, flags=re.MULTILINE)
+    
+    # Take the first meaningful portion
+    content = content.strip()
+    if len(content) > MAX_README_CHARS:
+        # Try to cut at a sentence boundary
+        truncated = content[:MAX_README_CHARS]
+        last_period = truncated.rfind('.')
+        last_newline = truncated.rfind('\n')
+        cut_point = max(last_period, last_newline)
+        if cut_point > MAX_README_CHARS // 2:
+            content = truncated[:cut_point + 1].strip()
+        else:
+            content = truncated.strip() + "..."
+    
+    return content if content else None
 
 
 def _extract_imports(file_path: Path) -> list[str]:
@@ -45,6 +124,26 @@ def _extract_docstrings(file_path: Path) -> list[str]:
                 if first_sentence and len(first_sentence) > 10:
                     docstrings.append(first_sentence)
     return docstrings
+
+
+def _extract_function_calls(file_path: Path) -> list[str]:
+    """Extract all function/method calls from a Python file."""
+    try:
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            tree = ast.parse(f.read())
+    except (SyntaxError, OSError):
+        return []
+
+    calls: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            # Direct function call: func()
+            if isinstance(node.func, ast.Name):
+                calls.append(node.func.id)
+            # Method call: obj.method()
+            elif isinstance(node.func, ast.Attribute):
+                calls.append(node.func.attr)
+    return calls
 
 
 def condense(entities: list[Entity], repo_path: Path, max_symbols: int = 20) -> str:
@@ -88,10 +187,50 @@ def condense(entities: list[Entity], repo_path: Path, max_symbols: int = 20) -> 
     # Collect imports and docstrings from files
     all_imports: dict[str, int] = defaultdict(int)
     all_docstrings: list[str] = []
+    all_function_calls: dict[str, int] = defaultdict(int)
     for file_path in files:
         for imp in _extract_imports(file_path):
             all_imports[imp] += 1
         all_docstrings.extend(_extract_docstrings(file_path))
+        for call in _extract_function_calls(file_path):
+            all_function_calls[call] += 1
+
+    # Find the most frequently called functions that are defined in this repo
+    # Filter out generic/common method names that don't reveal domain meaning
+    generic_names = {
+        # Common accessors/mutators
+        "get", "set", "put", "delete", "remove", "add", "pop", "push",
+        "read", "write", "load", "save", "dump", "fetch", "store",
+        # Common lifecycle methods
+        "init", "__init__", "setup", "teardown", "close", "open", "start", "stop",
+        "run", "execute", "call", "invoke", "apply",
+        # Common converters
+        "to_dict", "to_json", "to_string", "to_list", "from_dict", "from_json",
+        "as_dict", "as_json", "dict", "json", "str", "repr",
+        # Common utilities
+        "copy", "clone", "update", "merge", "clear", "reset", "refresh",
+        "validate", "check", "verify", "ensure", "assert",
+        # Common getters/properties
+        "items", "keys", "values", "len", "size", "count", "length",
+        "first", "last", "next", "prev", "head", "tail",
+        # Testing
+        "test", "mock", "patch", "fixture",
+        # Logging/debug
+        "log", "debug", "info", "warn", "error", "print", "format",
+        # Common short names
+        "ok", "err", "do", "is", "has", "can",
+    }
+    
+    defined_functions = set(functions)
+    internal_calls = [
+        (name, count) for name, count in all_function_calls.items()
+        if name in defined_functions 
+        and count > 1
+        and name.lower() not in generic_names
+        and len(name) > 3  # Skip very short names
+        and not name.startswith("_")  # Skip private methods
+    ]
+    top_called_functions = sorted(internal_calls, key=lambda x: x[1], reverse=True)[:10]
 
     # Filter to external libraries (not local modules)
     local_modules = {f.stem for f in files}
@@ -101,12 +240,26 @@ def condense(entities: list[Entity], repo_path: Path, max_symbols: int = 20) -> 
     ]
     top_imports = sorted(external_imports, key=lambda x: x[1], reverse=True)[:10]
 
+    # Extract README for project description
+    readme_content = _extract_readme(repo_path)
+
     lines = [
         f"Repository: {repo_name}",
         f"Files: {len(files)} Python files",
+    ]
+
+    # Add README description first (most important context)
+    if readme_content:
+        lines.extend([
+            "",
+            "Project Description (from README):",
+            readme_content,
+        ])
+
+    lines.extend([
         "",
         "Project Structure:",
-    ]
+    ])
 
     if directories:
         for d in sorted(directories)[:5]:
@@ -140,6 +293,15 @@ def condense(entities: list[Entity], repo_path: Path, max_symbols: int = 20) -> 
             lines.append(f"  {i}. {rel_path} (complexity: {complexity})")
         except ValueError:
             lines.append(f"  {i}. {file_path.name} (complexity: {complexity})")
+
+    # Add key functions (most frequently called)
+    if top_called_functions:
+        lines.extend([
+            "",
+            "Key Functions (by usage frequency):",
+        ])
+        for name, count in top_called_functions:
+            lines.append(f"  - {name} (called {count}x)")
 
     # Add docstring insights (what the code actually does)
     if all_docstrings:

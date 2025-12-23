@@ -21,6 +21,26 @@ from .llm import LLMConfig, LLMError, generate_image, generate_prompt, get_api_k
 from .parse import parse
 
 
+def _get_unique_output_path(base_path: Path) -> Path:
+    """Generate a unique output path if the file already exists.
+
+    If output/art.png exists, returns output/art_1.png, output/art_2.png, etc.
+    """
+    if not base_path.exists():
+        return base_path
+
+    stem = base_path.stem
+    suffix = base_path.suffix
+    parent = base_path.parent
+
+    counter = 1
+    while True:
+        new_path = parent / f"{stem}_{counter}{suffix}"
+        if not new_path.exists():
+            return new_path
+        counter += 1
+
+
 def main() -> None:
     load_dotenv()
 
@@ -167,12 +187,13 @@ def main() -> None:
             logger.info("   Model: %s", config.ai.image_model)
             image_data = generate_image(image_prompt, llm_config)
 
-            # Ensure output directory exists
+            # Ensure output directory exists and get unique filename
             args.output.parent.mkdir(parents=True, exist_ok=True)
-            args.output.write_bytes(image_data)
+            output_path = _get_unique_output_path(args.output)
+            output_path.write_bytes(image_data)
             logger.info("")
             logger.info("═" * 60)
-            logger.info("✅ Success! Saved image to: %s", args.output)
+            logger.info("✅ Success! Saved image to: %s", output_path)
             logger.info("═" * 60)
 
         except LLMError as e:
