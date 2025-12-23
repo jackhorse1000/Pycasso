@@ -7,6 +7,15 @@ from dotenv import load_dotenv
 
 from .condense import condense
 from .config import load_config
+from .github import (
+    GitHubError,
+    PrivateRepoError,
+    check_repo_public,
+    cleanup_repo,
+    clone_repo,
+    is_github_url,
+    parse_github_url,
+)
 from .harvest import harvest
 from .llm import LLMConfig, LLMError, generate_image, generate_prompt, get_api_key
 from .parse import parse
@@ -19,13 +28,17 @@ def main() -> None:
         prog="pycasso-ai",
         description="Generate AI artwork from Python repositories",
     )
-    parser.add_argument("path", type=Path, help="Path to Python repository")
     parser.add_argument(
-        "-o", "--output", type=Path, default=Path("art.png"), help="Output image path"
+        "source",
+        type=str,
+        help="Path to Python repository or GitHub URL (e.g., https://github.com/owner/repo)",
+    )
+    parser.add_argument(
+        "-o", "--output", type=Path, default=Path("output/art.png"), help="Output image path"
     )
     parser.add_argument("--style", type=str, help="Art style (overrides config)")
     parser.add_argument("-c", "--config", type=Path, help="Path to config file")
-    parser.add_argument("-v", "--verbose", action="store_true", help="Show generated prompt")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Show code summary")
 
     args = parser.parse_args()
 
@@ -39,99 +52,139 @@ def main() -> None:
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
 
-    repo_path = args.path.resolve()
-    if not repo_path.exists():
-        logger.error("Path does not exist: %s", repo_path)
-        sys.exit(1)
+    # Determine if source is GitHub URL or local path
+    is_github = is_github_url(args.source)
+    cloned_path: Path | None = None
 
     try:
-        api_key = get_api_key()
-    except LLMError as e:
-        logger.error(str(e))
-        sys.exit(1)
+        if is_github:
+            try:
+                github_repo = parse_github_url(args.source)
+                logger.info("")
+                logger.info("═" * 60)
+                logger.info("  PYCASSO-AI: Generating artwork from code")
+                logger.info("═" * 60)
+                logger.info("")
+                logger.info("🔒 Checking repository accessibility...")
+                logger.info("   Repository: %s/%s", github_repo.owner, github_repo.name)
+                check_repo_public(github_repo)
+                logger.info("   ✓ Repository is public")
+                logger.info("")
+                logger.info("🌐 Cloning repository...")
+                cloned_path = clone_repo(github_repo)
+                repo_path = cloned_path
+                logger.info("   ✓ Cloned to temporary directory")
+            except PrivateRepoError as e:
+                logger.error("")
+                logger.error("❌ %s", e)
+                logger.error("")
+                logger.error("   Tip: Make sure the repository URL is correct and the repo is public.")
+                sys.exit(1)
+            except GitHubError as e:
+                logger.error("GitHub error: %s", e)
+                sys.exit(1)
+        else:
+            repo_path = Path(args.source).resolve()
+            if not repo_path.exists():
+                logger.error("Path does not exist: %s", repo_path)
+                sys.exit(1)
+            logger.info("")
+            logger.info("═" * 60)
+            logger.info("  PYCASSO-AI: Generating artwork from code")
+            logger.info("═" * 60)
+            logger.info("")
 
-    config = load_config(args.config)
-    style = args.style or config.ai.style
+        try:
+            api_key = get_api_key()
+        except LLMError as e:
+            logger.error(str(e))
+            sys.exit(1)
 
-    logger.info("")
-    logger.info("═" * 60)
-    logger.info("  PYCASSO-AI: Generating artwork from code")
-    logger.info("═" * 60)
-    logger.info("")
+        config = load_config(args.config)
+        style = args.style or config.ai.style
 
-    # Step 1: Harvest files
-    logger.info("📂 Step 1: Harvesting Python files")
-    logger.info("   Source: %s", repo_path)
-    files = list(harvest(repo_path, config.exclude.dirs))
+        # Step 1: Harvest files
+        logger.info("📂 Step 1: Harvesting Python files")
+        logger.info("   Source: %s", repo_path)
+        files = list(harvest(repo_path, config.exclude.dirs))
 
-    if not files:
-        logger.error("No Python files found")
-        sys.exit(1)
+        if not files:
+            logger.error("No Python files found")
+            sys.exit(1)
 
-    logger.info("   Found %d Python files", len(files))
+        logger.info("   Found %d Python files", len(files))
 
-    # Step 2: Parse entities
-    logger.info("")
-    logger.info("🔍 Step 2: Parsing code entities")
-    entities = []
-    for file_path in files:
-        entities.extend(parse(file_path))
-
-    class_count = sum(1 for e in entities if e.entity_type.name == "CLASS")
-    func_count = sum(1 for e in entities if e.entity_type.name == "FUNCTION")
-    logger.info("   Extracted %d entities (%d classes, %d functions)", len(entities), class_count, func_count)
-
-    # Step 3: Condense summary
-    logger.info("")
-    logger.info("📝 Step 3: Condensing code summary")
-    summary = condense(entities, repo_path)
-
-    if args.verbose:
+        # Step 2: Parse entities
         logger.info("")
-        logger.info("─" * 40)
-        logger.info("Code Summary:")
-        logger.info("─" * 40)
-        for line in summary.split("\n"):
-            logger.info("   %s", line)
-        logger.info("─" * 40)
+        logger.info("🔍 Step 2: Parsing code entities")
+        entities = []
+        for file_path in files:
+            entities.extend(parse(file_path))
 
-    llm_config = LLMConfig(
-        api_key=api_key,
-        prompt_model=config.ai.prompt_model,
-        image_model=config.ai.image_model,
-    )
+        class_count = sum(1 for e in entities if e.entity_type.name == "CLASS")
+        func_count = sum(1 for e in entities if e.entity_type.name == "FUNCTION")
+        logger.info("   Extracted %d entities (%d classes, %d functions)", len(entities), class_count, func_count)
 
-    try:
-        # Step 4: Generate prompt
+        # Step 3: Condense summary
         logger.info("")
-        logger.info("🤖 Step 4: Generating image prompt")
-        logger.info("   Model: %s", config.ai.prompt_model)
-        logger.info("   Style: %s", style)
-        image_prompt = generate_prompt(summary, style, llm_config)
+        logger.info("📝 Step 3: Condensing code summary")
+        summary = condense(entities, repo_path)
 
-        logger.info("")
-        logger.info("─" * 40)
-        logger.info("Generated Image Prompt:")
-        logger.info("─" * 40)
-        for line in image_prompt.split("\n"):
-            logger.info("   %s", line)
-        logger.info("─" * 40)
+        if args.verbose:
+            logger.info("")
+            logger.info("─" * 40)
+            logger.info("Code Summary:")
+            logger.info("─" * 40)
+            for line in summary.split("\n"):
+                logger.info("   %s", line)
+            logger.info("─" * 40)
 
-        # Step 5: Generate image
-        logger.info("")
-        logger.info("🎨 Step 5: Generating image")
-        logger.info("   Model: %s", config.ai.image_model)
-        image_data = generate_image(image_prompt, llm_config)
+        llm_config = LLMConfig(
+            api_key=api_key,
+            prompt_model=config.ai.prompt_model,
+            image_model=config.ai.image_model,
+        )
 
-        args.output.write_bytes(image_data)
-        logger.info("")
-        logger.info("═" * 60)
-        logger.info("✅ Success! Saved image to: %s", args.output)
-        logger.info("═" * 60)
+        try:
+            # Step 4: Generate prompt
+            logger.info("")
+            logger.info("🤖 Step 4: Generating image prompt")
+            logger.info("   Model: %s", config.ai.prompt_model)
+            logger.info("   Style: %s", style)
+            image_prompt = generate_prompt(summary, style, llm_config)
 
-    except LLMError as e:
-        logger.error("LLM error: %s", e)
-        sys.exit(1)
+            logger.info("")
+            logger.info("─" * 40)
+            logger.info("Generated Image Prompt:")
+            logger.info("─" * 40)
+            for line in image_prompt.split("\n"):
+                logger.info("   %s", line)
+            logger.info("─" * 40)
+
+            # Step 5: Generate image
+            logger.info("")
+            logger.info("🎨 Step 5: Generating image")
+            logger.info("   Model: %s", config.ai.image_model)
+            image_data = generate_image(image_prompt, llm_config)
+
+            # Ensure output directory exists
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_bytes(image_data)
+            logger.info("")
+            logger.info("═" * 60)
+            logger.info("✅ Success! Saved image to: %s", args.output)
+            logger.info("═" * 60)
+
+        except LLMError as e:
+            logger.error("LLM error: %s", e)
+            sys.exit(1)
+
+    finally:
+        # Clean up cloned repository
+        if cloned_path is not None:
+            logger.info("")
+            logger.info("🧹 Cleaning up temporary files...")
+            cleanup_repo(cloned_path)
 
 
 if __name__ == "__main__":
