@@ -22,10 +22,6 @@ from .parse import parse
 
 
 def _get_unique_output_path(base_path: Path) -> Path:
-    """Generate a unique output path if the file already exists.
-
-    If output/art.png exists, returns output/art_1.png, output/art_2.png, etc.
-    """
     if not base_path.exists():
         return base_path
 
@@ -68,11 +64,9 @@ def main() -> None:
     )
     logger = logging.getLogger(__name__)
 
-    # Suppress noisy httpx debug logs even in verbose mode
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
 
-    # Determine if source is GitHub URL or local path
     is_github = is_github_url(args.source)
     cloned_path: Path | None = None
 

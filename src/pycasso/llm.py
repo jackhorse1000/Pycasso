@@ -1,8 +1,10 @@
 import base64
 import logging
 import os
+import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import httpx
 
@@ -105,10 +107,8 @@ def generate_image(image_prompt: str, config: LLMConfig) -> bytes:
 
 
 def _make_request(
-    payload: dict, headers: dict, timeout: float, retries: int = 1
-) -> dict:
-    import time
-
+    payload: dict[str, Any], headers: dict[str, str], timeout: float, retries: int = 1
+) -> dict[str, Any]:
     last_error: Exception | None = None
 
     for attempt in range(retries + 1):

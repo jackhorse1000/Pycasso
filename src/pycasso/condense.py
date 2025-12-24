@@ -11,11 +11,6 @@ TOKEN_TO_WORD_RATIO = 0.75
 
 
 def _extract_readme(repo_path: Path) -> str | None:
-    """Extract and summarize README content from the repository.
-    
-    Looks for README.md, README.rst, or README.txt and extracts
-    the most relevant parts (title, description, features).
-    """
     readme_names = ["README.md", "README.MD", "readme.md", "README.rst", "README.txt", "README"]
     
     readme_path = None
@@ -29,69 +24,66 @@ def _extract_readme(repo_path: Path) -> str | None:
         return None
     
     try:
-        with open(readme_path, "r", encoding="utf-8", errors="ignore") as f:
-            content = f.read()
+        content = readme_path.read_text(encoding="utf-8", errors="ignore")
     except OSError:
         return None
     
     if not content.strip():
         return None
     
-    # Clean up markdown formatting
-    # Remove badge links (nested image in link): [![alt](img)](link)
-    content = re.sub(r'\[!\[[^\]]*\]\([^)]*\)\]\([^)]*\)', '', content)
-    # Remove standalone images: ![alt](url)
-    content = re.sub(r'!\[[^\]]*\]\([^)]*\)', '', content)
-    # Remove empty links: [](url)
-    content = re.sub(r'\[\]\([^)]*\)', '', content)
-    # Remove HTML tags
-    content = re.sub(r'<[^>]+>', '', content)
-    # Remove code blocks
-    content = re.sub(r'```[\s\S]*?```', '', content)
-    content = re.sub(r'`[^`]+`', '', content)
-    # Remove links but keep text: [text](url) -> text
-    content = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', content)
-    # Remove markdown header symbols but keep text
-    content = re.sub(r'^#{1,6}\s*', '', content, flags=re.MULTILINE)
-    # Remove horizontal rules
-    content = re.sub(r'^[-*_]{3,}\s*$', '', content, flags=re.MULTILINE)
-    # Remove bullet points but keep text
-    content = re.sub(r'^\s*[-*+]\s+', '', content, flags=re.MULTILINE)
-    # Remove numbered lists but keep text
-    content = re.sub(r'^\s*\d+\.\s+', '', content, flags=re.MULTILINE)
-    # Remove blockquotes
-    content = re.sub(r'^>\s*', '', content, flags=re.MULTILINE)
-    # Remove bold/italic markers
-    content = re.sub(r'\*\*([^*]+)\*\*', r'\1', content)
-    content = re.sub(r'\*([^*]+)\*', r'\1', content)
-    content = re.sub(r'__([^_]+)__', r'\1', content)
-    content = re.sub(r'_([^_]+)_', r'\1', content)
-    # Clean up excessive whitespace
-    content = re.sub(r'\n{3,}', '\n\n', content)
-    content = re.sub(r' {2,}', ' ', content)
-    content = re.sub(r'^\s+$', '', content, flags=re.MULTILINE)
-    
-    # Take the first meaningful portion
-    content = content.strip()
-    if len(content) > MAX_README_CHARS:
-        # Try to cut at a sentence boundary
-        truncated = content[:MAX_README_CHARS]
-        last_period = truncated.rfind('.')
-        last_newline = truncated.rfind('\n')
-        cut_point = max(last_period, last_newline)
-        if cut_point > MAX_README_CHARS // 2:
-            content = truncated[:cut_point + 1].strip()
-        else:
-            content = truncated.strip() + "..."
+    content = _clean_markdown(content)
+    content = _truncate_to_limit(content.strip(), MAX_README_CHARS)
     
     return content if content else None
 
 
+def _clean_markdown(content: str) -> str:
+    patterns = [
+        (r'\[!\[[^\]]*\]\([^)]*\)\]\([^)]*\)', ''),
+        (r'!\[[^\]]*\]\([^)]*\)', ''),
+        (r'\[\]\([^)]*\)', ''),
+        (r'<[^>]+>', ''),
+        (r'```[\s\S]*?```', ''),
+        (r'`[^`]+`', ''),
+        (r'\[([^\]]+)\]\([^)]+\)', r'\1'),
+        (r'^#{1,6}\s*', ''),
+        (r'^[-*_]{3,}\s*$', ''),
+        (r'^\s*[-*+]\s+', ''),
+        (r'^\s*\d+\.\s+', ''),
+        (r'^>\s*', ''),
+        (r'\*\*([^*]+)\*\*', r'\1'),
+        (r'\*([^*]+)\*', r'\1'),
+        (r'__([^_]+)__', r'\1'),
+        (r'_([^_]+)_', r'\1'),
+        (r'\n{3,}', '\n\n'),
+        (r' {2,}', ' '),
+        (r'^\s+$', ''),
+    ]
+    
+    for pattern, replacement in patterns:
+        flags = re.MULTILINE if pattern.startswith('^') else 0
+        content = re.sub(pattern, replacement, content, flags=flags)
+    
+    return content
+
+
+def _truncate_to_limit(content: str, max_chars: int) -> str:
+    if len(content) <= max_chars:
+        return content
+    
+    truncated = content[:max_chars]
+    last_period = truncated.rfind('.')
+    last_newline = truncated.rfind('\n')
+    cut_point = max(last_period, last_newline)
+    
+    if cut_point > max_chars // 2:
+        return truncated[:cut_point + 1].strip()
+    return truncated.strip() + "..."
+
+
 def _extract_imports(file_path: Path) -> list[str]:
-    """Extract top-level imports from a Python file."""
     try:
-        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-            tree = ast.parse(f.read())
+        tree = ast.parse(file_path.read_text(encoding="utf-8", errors="ignore"))
     except (SyntaxError, OSError):
         return []
 
@@ -100,17 +92,14 @@ def _extract_imports(file_path: Path) -> list[str]:
         if isinstance(node, ast.Import):
             for alias in node.names:
                 imports.append(alias.name.split(".")[0])
-        elif isinstance(node, ast.ImportFrom):
-            if node.module:
-                imports.append(node.module.split(".")[0])
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imports.append(node.module.split(".")[0])
     return imports
 
 
 def _extract_docstrings(file_path: Path) -> list[str]:
-    """Extract docstrings from classes and functions."""
     try:
-        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-            tree = ast.parse(f.read())
+        tree = ast.parse(file_path.read_text(encoding="utf-8", errors="ignore"))
     except (SyntaxError, OSError):
         return []
 
@@ -119,7 +108,6 @@ def _extract_docstrings(file_path: Path) -> list[str]:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             docstring = ast.get_docstring(node)
             if docstring:
-                # Take first sentence only
                 first_sentence = docstring.split(".")[0].strip()
                 if first_sentence and len(first_sentence) > 10:
                     docstrings.append(first_sentence)
@@ -127,20 +115,16 @@ def _extract_docstrings(file_path: Path) -> list[str]:
 
 
 def _extract_function_calls(file_path: Path) -> list[str]:
-    """Extract all function/method calls from a Python file."""
     try:
-        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-            tree = ast.parse(f.read())
+        tree = ast.parse(file_path.read_text(encoding="utf-8", errors="ignore"))
     except (SyntaxError, OSError):
         return []
 
     calls: list[str] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Call):
-            # Direct function call: func()
             if isinstance(node.func, ast.Name):
                 calls.append(node.func.id)
-            # Method call: obj.method()
             elif isinstance(node.func, ast.Attribute):
                 calls.append(node.func.attr)
     return calls
@@ -195,29 +179,19 @@ def condense(entities: list[Entity], repo_path: Path, max_symbols: int = 20) -> 
         for call in _extract_function_calls(file_path):
             all_function_calls[call] += 1
 
-    # Find the most frequently called functions that are defined in this repo
-    # Filter out generic/common method names that don't reveal domain meaning
     generic_names = {
-        # Common accessors/mutators
         "get", "set", "put", "delete", "remove", "add", "pop", "push",
         "read", "write", "load", "save", "dump", "fetch", "store",
-        # Common lifecycle methods
         "init", "__init__", "setup", "teardown", "close", "open", "start", "stop",
         "run", "execute", "call", "invoke", "apply",
-        # Common converters
         "to_dict", "to_json", "to_string", "to_list", "from_dict", "from_json",
         "as_dict", "as_json", "dict", "json", "str", "repr",
-        # Common utilities
         "copy", "clone", "update", "merge", "clear", "reset", "refresh",
         "validate", "check", "verify", "ensure", "assert",
-        # Common getters/properties
         "items", "keys", "values", "len", "size", "count", "length",
         "first", "last", "next", "prev", "head", "tail",
-        # Testing
         "test", "mock", "patch", "fixture",
-        # Logging/debug
         "log", "debug", "info", "warn", "error", "print", "format",
-        # Common short names
         "ok", "err", "do", "is", "has", "can",
     }
     
@@ -227,12 +201,11 @@ def condense(entities: list[Entity], repo_path: Path, max_symbols: int = 20) -> 
         if name in defined_functions 
         and count > 1
         and name.lower() not in generic_names
-        and len(name) > 3  # Skip very short names
-        and not name.startswith("_")  # Skip private methods
+        and len(name) > 3
+        and not name.startswith("_")
     ]
     top_called_functions = sorted(internal_calls, key=lambda x: x[1], reverse=True)[:10]
 
-    # Filter to external libraries (not local modules)
     local_modules = {f.stem for f in files}
     external_imports = [
         (name, count) for name, count in all_imports.items()
@@ -240,7 +213,6 @@ def condense(entities: list[Entity], repo_path: Path, max_symbols: int = 20) -> 
     ]
     top_imports = sorted(external_imports, key=lambda x: x[1], reverse=True)[:10]
 
-    # Extract README for project description
     readme_content = _extract_readme(repo_path)
 
     lines = [
@@ -248,7 +220,6 @@ def condense(entities: list[Entity], repo_path: Path, max_symbols: int = 20) -> 
         f"Files: {len(files)} Python files",
     ]
 
-    # Add README description first (most important context)
     if readme_content:
         lines.extend([
             "",
@@ -267,7 +238,6 @@ def condense(entities: list[Entity], repo_path: Path, max_symbols: int = 20) -> 
     else:
         lines.append("  - (flat structure)")
 
-    # Add key dependencies
     if top_imports:
         lines.extend([
             "",
@@ -294,7 +264,6 @@ def condense(entities: list[Entity], repo_path: Path, max_symbols: int = 20) -> 
         except ValueError:
             lines.append(f"  {i}. {file_path.name} (complexity: {complexity})")
 
-    # Add key functions (most frequently called)
     if top_called_functions:
         lines.extend([
             "",
@@ -303,15 +272,13 @@ def condense(entities: list[Entity], repo_path: Path, max_symbols: int = 20) -> 
         for name, count in top_called_functions:
             lines.append(f"  - {name} (called {count}x)")
 
-    # Add docstring insights (what the code actually does)
     if all_docstrings:
-        unique_docstrings = list(dict.fromkeys(all_docstrings))[:8]  # Dedupe, take top 8
+        unique_docstrings = list(dict.fromkeys(all_docstrings))[:8]
         lines.extend([
             "",
             "What the code does (from docstrings):",
         ])
         for doc in unique_docstrings:
-            # Truncate long docstrings
             doc_text = doc[:80] + "..." if len(doc) > 80 else doc
             lines.append(f"  - {doc_text}")
 
@@ -373,13 +340,11 @@ def _split_name(name: str) -> list[str]:
 
 
 def _estimate_tokens(text: str) -> int:
-    """Rough token estimation using word count. Approximates OpenAI's tokenizer."""
     words = text.split()
     return int(len(words) / TOKEN_TO_WORD_RATIO)
 
 
 def _truncate_summary(summary: str, max_tokens: int) -> str:
-    """Truncate summary to fit within token limit, keeping high-level structure."""
     lines = summary.split("\n")
 
     result: list[str] = []

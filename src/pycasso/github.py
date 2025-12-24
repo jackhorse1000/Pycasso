@@ -1,5 +1,3 @@
-"""GitHub repository cloning utilities for pycasso."""
-
 import re
 import shutil
 import subprocess
@@ -12,67 +10,50 @@ import httpx
 
 @dataclass
 class GitHubRepo:
-    """Parsed GitHub repository information."""
-
     owner: str
     name: str
     url: str
 
     @property
     def clone_url(self) -> str:
-        """Get the HTTPS clone URL."""
         return f"https://github.com/{self.owner}/{self.name}.git"
 
     @property
     def api_url(self) -> str:
-        """Get the GitHub API URL for this repo."""
         return f"https://api.github.com/repos/{self.owner}/{self.name}"
 
 
 class GitHubError(Exception):
-    """Error related to GitHub operations."""
-
     pass
 
 
 class PrivateRepoError(GitHubError):
-    """Error when trying to access a private repository."""
-
     pass
 
 
+GITHUB_URL_PATTERNS = [
+    r"^https?://github\.com/[\w.-]+/[\w.-]+",
+    r"^github\.com/[\w.-]+/[\w.-]+",
+    r"^git@github\.com:[\w.-]+/[\w.-]+",
+]
+
+GITHUB_PARSE_PATTERNS = [
+    r"https?://github\.com/([\w.-]+)/([\w.-]+)",
+    r"github\.com/([\w.-]+)/([\w.-]+)",
+    r"git@github\.com:([\w.-]+)/([\w.-]+)",
+]
+
+
 def is_github_url(path_or_url: str) -> bool:
-    """Check if the input is a GitHub URL."""
-    patterns = [
-        r"^https?://github\.com/[\w.-]+/[\w.-]+",
-        r"^github\.com/[\w.-]+/[\w.-]+",
-        r"^git@github\.com:[\w.-]+/[\w.-]+",
-    ]
-    return any(re.match(pattern, path_or_url) for pattern in patterns)
+    return any(re.match(pattern, path_or_url) for pattern in GITHUB_URL_PATTERNS)
 
 
 def parse_github_url(url: str) -> GitHubRepo:
-    """Parse a GitHub URL into owner and repo name.
-
-    Supports formats:
-    - https://github.com/owner/repo
-    - https://github.com/owner/repo.git
-    - github.com/owner/repo
-    - git@github.com:owner/repo.git
-    """
-    # Remove trailing slashes and .git suffix
     url = url.rstrip("/")
     if url.endswith(".git"):
         url = url[:-4]
 
-    # Handle different URL formats
-    patterns = [
-        r"https?://github\.com/([\w.-]+)/([\w.-]+)",
-        r"github\.com/([\w.-]+)/([\w.-]+)",
-        r"git@github\.com:([\w.-]+)/([\w.-]+)",
-    ]
-
-    for pattern in patterns:
+    for pattern in GITHUB_PARSE_PATTERNS:
         match = re.match(pattern, url)
         if match:
             owner, name = match.groups()
@@ -82,15 +63,6 @@ def parse_github_url(url: str) -> GitHubRepo:
 
 
 def check_repo_public(repo: GitHubRepo) -> None:
-    """Check if a GitHub repository is public.
-
-    Args:
-        repo: Parsed GitHub repository information
-
-    Raises:
-        PrivateRepoError: If the repository is private or doesn't exist
-        GitHubError: If there's a network error
-    """
     try:
         response = httpx.get(repo.api_url, timeout=10.0)
 
@@ -99,10 +71,9 @@ def check_repo_public(repo: GitHubRepo) -> None:
                 f"Repository '{repo.owner}/{repo.name}' not found or is private. "
                 "Pycasso can only access public repositories."
             )
-        elif response.status_code == 403:
-            # Rate limited but we can still try to clone
+        if response.status_code == 403:
             return
-        elif response.status_code != 200:
+        if response.status_code != 200:
             raise GitHubError(f"GitHub API error: {response.status_code}")
 
         data = response.json()
@@ -119,15 +90,6 @@ def check_repo_public(repo: GitHubRepo) -> None:
 
 
 def clone_repo(repo: GitHubRepo, target_dir: Path | None = None) -> Path:
-    """Clone a GitHub repository to a temporary directory.
-
-    Args:
-        repo: Parsed GitHub repository information
-        target_dir: Optional target directory. If None, creates a temp directory.
-
-    Returns:
-        Path to the cloned repository
-    """
     if target_dir is None:
         target_dir = Path(tempfile.mkdtemp(prefix=f"pycasso-{repo.name}-"))
 
@@ -151,8 +113,7 @@ def clone_repo(repo: GitHubRepo, target_dir: Path | None = None) -> Path:
 
 
 def cleanup_repo(repo_path: Path) -> None:
-    """Remove a cloned repository directory."""
     try:
         shutil.rmtree(repo_path)
     except OSError:
-        pass  # Best effort cleanup
+        pass

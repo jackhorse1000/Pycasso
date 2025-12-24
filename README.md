@@ -35,7 +35,10 @@ pycasso https://github.com/owner/repo -o artwork.png
 # With custom style
 pycasso /path/to/repo --style "Cyberpunk neon graffiti" -o art.png
 
-# Using a config file
+# Using a config file (auto-discovers pycasso.toml in current directory)
+pycasso /path/to/repo -o art.png
+
+# Explicit config file
 pycasso /path/to/repo -c pycasso.toml -o art.png
 
 # Show the code summary (verbose mode)
@@ -44,7 +47,7 @@ pycasso /path/to/repo -v -o art.png
 
 ## Configuration
 
-Create a `pycasso.toml` in your repo root to customise the output:
+Create a `pycasso.toml` in your working directory to customise the output. It will be auto-discovered:
 
 ```toml
 [exclude]
@@ -64,6 +67,16 @@ image_model = "google/gemini-2.5-flash-preview-05-20"
 - `ai.image_model`: Model used to generate the final image
 
 Both models are accessed via [OpenRouter](https://openrouter.ai). Check their pricing for details.
+
+### Customising the Prompt Template
+
+The prompt template used to generate image descriptions can be edited at:
+
+```
+src/pycasso/prompts/image_prompt.txt
+```
+
+This file uses `{code_summary}` and `{style}` placeholders that are filled in at runtime.
 
 ## Development
 
@@ -87,6 +100,7 @@ poetry run pycasso . -v --style "Your custom style"
 - `src/pycasso/llm.py` — OpenRouter API client
 - `src/pycasso/github.py` — GitHub repository cloning
 - `src/pycasso/config.py` — Configuration management
+- `src/pycasso/prompts/` — Prompt templates
 
 ## License
 

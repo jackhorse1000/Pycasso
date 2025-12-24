@@ -15,7 +15,7 @@ class ExcludeConfig:
 class AIConfig:
     style: str = "Synthwave / Dark Mode IDE aesthetic, neon colors, abstract"
     prompt_model: str = "anthropic/claude-haiku-4.5"
-    image_model: str = "google/gemini-3-pro-image-preview"
+    image_model: str = "google/gemini-2.5-flash-preview-05-20"
 
 
 @dataclass
