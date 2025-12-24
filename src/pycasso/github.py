@@ -1,4 +1,4 @@
-"""GitHub repository cloning utilities for pycasso-ai."""
+"""GitHub repository cloning utilities for pycasso."""
 
 import re
 import shutil
@@ -97,7 +97,7 @@ def check_repo_public(repo: GitHubRepo) -> None:
         if response.status_code == 404:
             raise PrivateRepoError(
                 f"Repository '{repo.owner}/{repo.name}' not found or is private. "
-                "Pycasso-ai can only access public repositories."
+                "Pycasso can only access public repositories."
             )
         elif response.status_code == 403:
             # Rate limited but we can still try to clone
@@ -109,7 +109,7 @@ def check_repo_public(repo: GitHubRepo) -> None:
         if data.get("private", False):
             raise PrivateRepoError(
                 f"Repository '{repo.owner}/{repo.name}' is private. "
-                "Pycasso-ai can only access public repositories."
+                "Pycasso can only access public repositories."
             )
 
     except httpx.TimeoutException:

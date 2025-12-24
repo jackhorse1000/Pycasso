@@ -1,8 +1,8 @@
 # Pycasso
 
-Transform Python repositories into Synthwave-styled generative art.
+Transform Python repositories into AI-generated art.
 
-Pycasso scans your Python codebase, analyses the AST structure, and renders a deterministic abstract artwork where each code construct becomes a geometric shape.
+Pycasso scans your Python codebase, analyses the AST structure, and uses AI to generate unique artwork inspired by your code.
 
 ## Installation
 
@@ -11,24 +11,6 @@ poetry install
 ```
 
 ## Usage
-
-### Geometric Mode (pycasso)
-
-```bash
-# Generate art from a Python repo
-pycasso /path/to/repo -o artwork.png
-
-# Use a specific seed for reproducibility
-pycasso /path/to/repo --seed 42 -o artwork.png
-
-# Use a custom config file
-pycasso /path/to/repo -c pycasso.toml -o artwork.png
-
-# Verbose output
-pycasso /path/to/repo -v -o artwork.png
-```
-
-### AI Mode (pycasso-ai)
 
 Generate art using OpenRouter's LLM capabilities. Set up your API key first:
 
@@ -41,20 +23,20 @@ cp .env.example .env
 echo "OPENROUTER_API_KEY=your_key_here" >> .env
 ```
 
-Then generate AI artwork:
+Then generate artwork:
 
 ```bash
 # Basic usage
-pycasso-ai /path/to/repo -o ai_artwork.png
+pycasso /path/to/repo -o artwork.png
 
 # With custom style
-pycasso-ai /path/to/repo --style "Cyberpunk neon graffiti" -o art.png
+pycasso /path/to/repo --style "Cyberpunk neon graffiti" -o art.png
 
 # Using a config file
-pycasso-ai /path/to/repo -c pycasso.toml -o art.png
+pycasso /path/to/repo -c pycasso.toml -o art.png
 
 # Show the generated prompt
-pycasso-ai /path/to/repo -v -o art.png
+pycasso /path/to/repo -v -o art.png
 ```
 
 ## Configuration
@@ -90,19 +72,6 @@ image_model = "google/gemini-2.0-flash-exp:free"
 
 Both models are accessed via OpenRouter. Pricing varies; check [OpenRouter pricing](https://openrouter.ai) for details.
 
-## Visual Language
-
-| Code Entity | Shape | Colour |
-|-------------|-------|--------|
-| Class | Hollow Square | Magenta |
-| Function | Solid Circle | Cyan |
-| Loop | Arc | Yellow |
-| Conditional | Triangle | Orange |
-
-## Determinism
-
-The same code + same seed = identical image. Change the seed to "remix" the layout, or change the code to see localised visual diffs.
-
 ## Development
 
 ```bash
@@ -113,17 +82,14 @@ poetry install
 poetry run pytest
 
 # Run with verbose logging
-poetry run pycasso . -v
-poetry run pycasso-ai . -v --style "Your custom style"
+poetry run pycasso . -v --style "Your custom style"
 ```
 
 ### Project Structure
 
-- `src/pycasso/cli.py` — Geometric art CLI
-- `src/pycasso/cli_ai.py` — AI art CLI
+- `src/pycasso/cli_ai.py` — CLI entry point
 - `src/pycasso/harvest.py` — File discovery
 - `src/pycasso/parse.py` — AST parsing
-- `src/pycasso/render.py` — Pillow-based geometric rendering
 - `src/pycasso/condense.py` — Code summary generator for AI
 - `src/pycasso/llm.py` — OpenRouter API client
 - `src/pycasso/config.py` — Configuration management

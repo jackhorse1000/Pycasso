@@ -1,18 +1,16 @@
 [tool.poetry]
 name = "pycasso"
 version = "0.1.0"
-description = "Transform Python repositories into Synthwave-styled generative art"
+description = "Transform Python repositories into AI-generated Synthwave-styled art"
 authors = ["Jack Horsburgh"]
 readme = "README.md"
 packages = [{include = "pycasso", from = "src"}]
 
 [tool.poetry.scripts]
-pycasso = "pycasso.cli:main"
-pycasso-ai = "pycasso.cli_ai:main"
+pycasso = "pycasso.cli_ai:main"
 
 [tool.poetry.dependencies]
 python = "^3.11"
-pillow = "^11.0.0"
 tomli = "^2.0.1"
 httpx = "^0.28.1"
 python-dotenv = "^1.2.1"

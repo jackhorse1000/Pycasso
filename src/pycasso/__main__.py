@@ -1,5 +1,5 @@
 import sys
 
-from pycasso.cli import main
+from pycasso.cli_ai import main
 
 sys.exit(main())

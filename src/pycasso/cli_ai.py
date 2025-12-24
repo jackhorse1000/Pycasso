@@ -45,7 +45,7 @@ def main() -> None:
     load_dotenv()
 
     parser = argparse.ArgumentParser(
-        prog="pycasso-ai",
+        prog="pycasso",
         description="Generate AI artwork from Python repositories",
     )
     parser.add_argument(
@@ -82,7 +82,7 @@ def main() -> None:
                 github_repo = parse_github_url(args.source)
                 logger.info("")
                 logger.info("═" * 60)
-                logger.info("  PYCASSO-AI: Generating artwork from code")
+                logger.info("  PYCASSO: Generating artwork from code")
                 logger.info("═" * 60)
                 logger.info("")
                 logger.info("🔒 Checking repository accessibility...")
@@ -110,7 +110,7 @@ def main() -> None:
                 sys.exit(1)
             logger.info("")
             logger.info("═" * 60)
-            logger.info("  PYCASSO-AI: Generating artwork from code")
+            logger.info("  PYCASSO: Generating artwork from code")
             logger.info("═" * 60)
             logger.info("")
 
