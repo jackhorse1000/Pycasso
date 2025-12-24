@@ -12,7 +12,7 @@ poetry install
 
 ## Usage
 
-Generate art using OpenRouter's LLM capabilities. Set up your API key first:
+Set up your OpenRouter API key first:
 
 ```bash
 # Copy the example env file
@@ -26,8 +26,11 @@ echo "OPENROUTER_API_KEY=your_key_here" >> .env
 Then generate artwork:
 
 ```bash
-# Basic usage
+# Basic usage - local repository
 pycasso /path/to/repo -o artwork.png
+
+# From a GitHub URL
+pycasso https://github.com/owner/repo -o artwork.png
 
 # With custom style
 pycasso /path/to/repo --style "Cyberpunk neon graffiti" -o art.png
@@ -35,7 +38,7 @@ pycasso /path/to/repo --style "Cyberpunk neon graffiti" -o art.png
 # Using a config file
 pycasso /path/to/repo -c pycasso.toml -o art.png
 
-# Show the generated prompt
+# Show the code summary (verbose mode)
 pycasso /path/to/repo -v -o art.png
 ```
 
@@ -44,33 +47,23 @@ pycasso /path/to/repo -v -o art.png
 Create a `pycasso.toml` in your repo root to customise the output:
 
 ```toml
-[canvas]
-width = 3840
-height = 2160
-
-[colors]
-background = "#121212"    # Deep Midnight
-class = "#FF007F"         # Cyber Magenta
-function = "#00FFFF"      # Electric Cyan
-loop = "#F5D300"          # Neon Yellow
-conditional = "#FF6B35"   # Orange
-
 [exclude]
 dirs = ["venv", "__pycache__", ".git", ".venv", "node_modules"]
 
 [ai]
-style = "Synthwave / Dark Mode IDE aesthetic, neon colors, abstract geometric"
-prompt_model = "openai/gpt-4.1"
-image_model = "google/gemini-2.0-flash-exp:free"
+style = "Synthwave / Dark Mode IDE aesthetic, neon colors, abstract"
+prompt_model = "anthropic/claude-haiku-4.5"
+image_model = "google/gemini-2.5-flash-preview-05-20"
 ```
 
-### AI Configuration Details
+### Configuration Options
 
-- `style`: Describes the desired art style. This is passed to GPT-4.1 when crafting the image prompt.
-- `prompt_model`: The LLM used to generate image prompts from code. Recommend `openai/gpt-4.1` for quality.
-- `image_model`: The model used to generate the final image. Recommend `google/gemini-2.0-flash-exp:free` (free tier).
+- `exclude.dirs`: Directories to skip when scanning for Python files
+- `ai.style`: Art style description passed to the LLM when generating the image prompt
+- `ai.prompt_model`: LLM used to generate image prompts from code analysis
+- `ai.image_model`: Model used to generate the final image
 
-Both models are accessed via OpenRouter. Pricing varies; check [OpenRouter pricing](https://openrouter.ai) for details.
+Both models are accessed via [OpenRouter](https://openrouter.ai). Check their pricing for details.
 
 ## Development
 
@@ -87,24 +80,13 @@ poetry run pycasso . -v --style "Your custom style"
 
 ### Project Structure
 
-- `src/pycasso/cli_ai.py` — CLI entry point
+- `src/pycasso/cli.py` — CLI entry point
 - `src/pycasso/harvest.py` — File discovery
-- `src/pycasso/parse.py` — AST parsing
-- `src/pycasso/condense.py` — Code summary generator for AI
+- `src/pycasso/parse.py` — AST parsing and entity extraction
+- `src/pycasso/condense.py` — Code summary generator
 - `src/pycasso/llm.py` — OpenRouter API client
+- `src/pycasso/github.py` — GitHub repository cloning
 - `src/pycasso/config.py` — Configuration management
-
-### Adding Features
-
-When adding new features, update tests in `tests/` directory:
-
-```bash
-# Run specific test file
-poetry run pytest tests/test_llm.py -v
-
-# Run with coverage
-poetry run pytest --cov=src/pycasso
-```
 
 ## License
 

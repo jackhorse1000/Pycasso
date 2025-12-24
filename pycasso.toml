@@ -1,20 +1,9 @@
 # Pycasso Configuration
 
-[canvas]
-width = 3840
-height = 2160
-
-[colors]
-background = "#121212"    # Deep Midnight
-class = "#FF007F"         # Cyber Magenta
-function = "#00FFFF"      # Electric Cyan
-loop = "#F5D300"          # Neon Yellow
-conditional = "#FF6B35"   # Orange
-
 [exclude]
 dirs = ["venv", "__pycache__", ".git", ".venv", "node_modules"]
 
 [ai]
 style = "Synthwave / Dark Mode IDE aesthetic, neon colors, abstract geometric"
 prompt_model = "openai/gpt-4.1"
-image_model = "google/gemini-3-pro-image-preview"
+image_model = "google/gemini-2.5-flash-image"

@@ -2,6 +2,7 @@ import base64
 import logging
 import os
 from dataclasses import dataclass
+from pathlib import Path
 
 import httpx
 
@@ -11,36 +12,19 @@ OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_TIMEOUT = 60.0
 RETRY_DELAY = 5.0
 
-PROMPT_TEMPLATE = """You are an artist creating unique visual art inspired by code. Your task is to create art that truly represents THIS SPECIFIC codebase, not generic tech imagery.
+PROMPTS_DIR = Path(__file__).parent / "prompts"
 
-## Code Analysis:
-{code_summary}
 
-## Your Task:
-Create a detailed image generation prompt that captures the UNIQUE essence of this codebase.
-
-CRITICAL REQUIREMENTS:
-1. **Be Specific**: Reference the actual domain concepts, libraries, and functionality described above
-2. **Visual Metaphors**: Transform the code's purpose into visual elements:
-   - If it processes data → flowing streams, transformations, crystals forming
-   - If it has APIs → interconnected nodes, gateways, bridges
-   - If it generates content → blooming flowers, stars being born, paint splatters
-   - If it has AI/ML → neural networks as organic structures, learning as growth
-3. **Reflect Complexity**: Match the visual complexity to the code complexity
-4. **Domain Colors**: Use colors that evoke the domain (e.g., green for nature apps, gold for finance)
-
-## Style Requirement:
-{style}
-
-## Output Format:
-Write ONLY the image generation prompt. Make it detailed (2-4 sentences) and highly specific to this codebase. Do NOT include generic tech elements like "circuit boards" or "binary code" unless the code is actually about those things."""
+def _load_prompt_template() -> str:
+    prompt_file = PROMPTS_DIR / "image_prompt.txt"
+    return prompt_file.read_text(encoding="utf-8")
 
 
 @dataclass
 class LLMConfig:
     api_key: str
-    prompt_model: str = "openai/gpt-4.1"
-    image_model: str = "google/gemini-2.0-flash-exp:free"
+    prompt_model: str = "anthropic/claude-haiku-4.5"
+    image_model: str = "google/gemini-2.5-flash-preview-05-20"
     timeout: float = DEFAULT_TIMEOUT
 
 
@@ -68,7 +52,8 @@ def get_api_key() -> str:
 
 
 def generate_prompt(code_summary: str, style: str, config: LLMConfig) -> str:
-    prompt = PROMPT_TEMPLATE.format(code_summary=code_summary, style=style)
+    template = _load_prompt_template()
+    prompt = template.format(code_summary=code_summary, style=style)
 
     payload = {
         "model": config.prompt_model,

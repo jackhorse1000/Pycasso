@@ -7,7 +7,7 @@ readme = "README.md"
 packages = [{include = "pycasso", from = "src"}]
 
 [tool.poetry.scripts]
-pycasso = "pycasso.cli_ai:main"
+pycasso = "pycasso.cli:main"
 
 [tool.poetry.dependencies]
 python = "^3.11"

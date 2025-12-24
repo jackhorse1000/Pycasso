@@ -120,7 +120,15 @@ def main() -> None:
             logger.error(str(e))
             sys.exit(1)
 
-        config = load_config(args.config)
+        # Auto-discover config: CLI flag > cwd > defaults
+        config_path = args.config
+        if config_path is None:
+            cwd_config = Path.cwd() / "pycasso.toml"
+            if cwd_config.exists():
+                config_path = cwd_config
+                logger.info("📄 Using config: %s", config_path)
+
+        config = load_config(config_path)
         style = args.style or config.ai.style
 
         # Step 1: Harvest files
