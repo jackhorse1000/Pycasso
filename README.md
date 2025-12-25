@@ -25,24 +25,61 @@ echo "OPENROUTER_API_KEY=your_key_here" >> .env
 
 Then generate artwork:
 
-```bash
-# Basic usage - local repository
-pycasso /path/to/repo -o artwork.png
+### Running Locally
 
-# From a GitHub URL
+Generate art from a local Python repository:
+
+```bash
+# Basic usage
+pycasso /path/to/your/repo -o artwork.png
+
+# With custom style
+pycasso /path/to/your/repo --style "Cyberpunk neon graffiti" -o art.png
+
+# Show the code analysis summary (verbose mode)
+pycasso /path/to/your/repo -v -o art.png
+
+# Using a config file (auto-discovers pycasso.toml in current directory)
+pycasso /path/to/your/repo -o art.png
+
+# Explicit config file path
+pycasso /path/to/your/repo -c pycasso.toml -o art.png
+```
+
+**Example:**
+```bash
+# Generate art for a Flask project
+pycasso ~/projects/flask-app -o flask-art.png
+
+# Generate art with custom style
+pycasso ~/projects/django-site --style "Minimalist zen black and white" -o zen-art.png
+```
+
+### Running with GitHub URL
+
+Generate art directly from a GitHub repository (it will be cloned automatically):
+
+```bash
+# Basic usage from GitHub
 pycasso https://github.com/owner/repo -o artwork.png
 
 # With custom style
-pycasso /path/to/repo --style "Cyberpunk neon graffiti" -o art.png
+pycasso https://github.com/owner/repo --style "Retro 80s arcade" -o retro-art.png
 
-# Using a config file (auto-discovers pycasso.toml in current directory)
-pycasso /path/to/repo -o art.png
+# Show the code analysis summary
+pycasso https://github.com/owner/repo -v -o art.png
+```
 
-# Explicit config file
-pycasso /path/to/repo -c pycasso.toml -o art.png
+**Examples:**
+```bash
+# Generate art for a popular Python project
+pycasso https://github.com/psf/requests -o requests-art.png
 
-# Show the code summary (verbose mode)
-pycasso /path/to/repo -v -o art.png
+# Generate art with verbose output
+pycasso https://github.com/django/django --style "Abstract digital art" -v -o django-art.png
+
+# Generate art for a smaller repository
+pycasso https://github.com/username/my-python-lib -o my-lib-art.png
 ```
 
 ## Configuration

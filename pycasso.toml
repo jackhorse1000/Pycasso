@@ -5,5 +5,5 @@ dirs = ["venv", "__pycache__", ".git", ".venv", "node_modules"]
 
 [ai]
 style = "Synthwave / Dark Mode IDE aesthetic, neon colors, abstract geometric"
-prompt_model = "openai/gpt-4.1"
+prompt_model = "moonshotai/kimi-k2-thinking"
 image_model = "google/gemini-2.5-flash-image"

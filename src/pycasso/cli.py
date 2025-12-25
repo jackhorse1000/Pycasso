@@ -143,8 +143,8 @@ def main() -> None:
         for file_path in files:
             entities.extend(parse(file_path))
 
-        class_count = sum(1 for e in entities if e.entity_type.name == "CLASS")
-        func_count = sum(1 for e in entities if e.entity_type.name == "FUNCTION")
+        class_count = sum(1 for e in entities if e.entity_type == "class")
+        func_count = sum(1 for e in entities if e.entity_type == "function")
         logger.info("   Extracted %d entities (%d classes, %d functions)", len(entities), class_count, func_count)
 
         # Step 3: Condense summary

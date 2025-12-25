@@ -3,7 +3,7 @@ import re
 from collections import defaultdict
 from pathlib import Path
 
-from .parse import Entity, EntityType
+from .parse import Entity
 
 MAX_SUMMARY_TOKENS = 2000
 MAX_README_CHARS = 1000
@@ -139,23 +139,16 @@ def condense(entities: list[Entity], repo_path: Path, max_symbols: int = 20) -> 
     files: set[Path] = set()
     classes: list[str] = []
     functions: list[str] = []
-    loop_count = 0
-    conditional_count = 0
-
-    file_complexity: dict[Path, int] = defaultdict(int)
 
     for entity in entities:
         files.add(entity.file_path)
-        file_complexity[entity.file_path] += entity.complexity
 
-        if entity.entity_type == EntityType.CLASS:
-            classes.append(entity.name)
-        elif entity.entity_type == EntityType.FUNCTION:
-            functions.append(entity.name)
-        elif entity.entity_type == EntityType.LOOP:
-            loop_count += 1
-        elif entity.entity_type == EntityType.CONDITIONAL:
-            conditional_count += 1
+        if entity.entity_type == "class":
+            if not entity.name.startswith("Test") and "Mock" not in entity.name:
+                classes.append(entity.name)
+        elif entity.entity_type == "function":
+            if not entity.name.startswith("_") and not entity.name.startswith("test_"):
+                functions.append(entity.name)
 
     directories: set[str] = set()
     for file_path in files:
@@ -165,8 +158,6 @@ def condense(entities: list[Entity], repo_path: Path, max_symbols: int = 20) -> 
                 directories.add(rel_path.parts[0])
         except ValueError:
             pass
-
-    top_files = sorted(file_complexity.items(), key=lambda x: x[1], reverse=True)[:5]
 
     # Collect imports and docstrings from files
     all_imports: dict[str, int] = defaultdict(int)
@@ -180,19 +171,49 @@ def condense(entities: list[Entity], repo_path: Path, max_symbols: int = 20) -> 
             all_function_calls[call] += 1
 
     generic_names = {
+        # Common CRUD/data operations
         "get", "set", "put", "delete", "remove", "add", "pop", "push",
-        "read", "write", "load", "save", "dump", "fetch", "store",
+        "read", "write", "load", "save", "dump", "fetch", "store", "create",
         "init", "__init__", "setup", "teardown", "close", "open", "start", "stop",
         "run", "execute", "call", "invoke", "apply",
+        # Serialization
         "to_dict", "to_json", "to_string", "to_list", "from_dict", "from_json",
         "as_dict", "as_json", "dict", "json", "str", "repr",
+        # Collection operations
         "copy", "clone", "update", "merge", "clear", "reset", "refresh",
         "validate", "check", "verify", "ensure", "assert",
         "items", "keys", "values", "len", "size", "count", "length",
         "first", "last", "next", "prev", "head", "tail",
+        # Testing
         "test", "mock", "patch", "fixture",
+        # Logging
         "log", "debug", "info", "warn", "error", "print", "format",
         "ok", "err", "do", "is", "has", "can",
+        # Python built-ins that show up as function calls
+        "super", "list", "dict", "set", "tuple", "int", "float", "bool",
+        "type", "isinstance", "issubclass", "hasattr", "getattr", "setattr", "delattr",
+        "append", "extend", "insert", "join", "split", "strip", "replace",
+        "filter", "map", "reduce", "sorted", "reversed", "enumerate", "zip",
+        "range", "iter", "any", "all", "min", "max", "sum", "abs",
+        "id", "hash", "ord", "chr", "hex", "bin", "oct",
+        "round", "divmod", "pow", "complex",
+        "input", "output", "encode", "decode",
+        "annotate", "order_by", "reverse",
+        # String/collection methods
+        "lower", "upper", "title", "capitalize", "swapcase",
+        "find", "index", "rfind", "rindex", "startswith", "endswith",
+        "match", "search", "sub", "compile", "group", "groups",
+        "exists", "isdir", "isfile", "isabs", "islink",
+        "setdefault", "fromkeys", "popitem",
+        # Common short method names
+        "send", "recv", "emit", "bind", "wrap", "seek", "tell", "flush",
+c        # Numpy/Pandas common operations
+        "array", "zeros", "ones", "arange", "reshape", "transpose",
+        "asarray", "dtype", "take", "view", "mean", "std",
+        # Generic algorithm/data operations
+        "solution", "main", "func", "sort", "swap", "compare",
+        # Presentation/rendering operations  
+        "show", "hide", "draw", "display", "paint",
     }
     
     defined_functions = set(functions)
@@ -251,18 +272,7 @@ def condense(entities: list[Entity], repo_path: Path, max_symbols: int = 20) -> 
         "Code Components:",
         f"  - Classes ({len(classes)}): {', '.join(classes[:max_symbols]) or 'none'}",
         f"  - Functions ({len(functions)}): {', '.join(functions[:max_symbols]) or 'none'}",
-        f"  - Loops: {loop_count} (indicates iterative/data processing patterns)",
-        f"  - Conditionals: {conditional_count} (indicates branching logic)",
-        "",
-        "Complexity Hotspots (most complex modules):",
     ])
-
-    for i, (file_path, complexity) in enumerate(top_files, 1):
-        try:
-            rel_path = file_path.relative_to(repo_path)
-            lines.append(f"  {i}. {rel_path} (complexity: {complexity})")
-        except ValueError:
-            lines.append(f"  {i}. {file_path.name} (complexity: {complexity})")
 
     if top_called_functions:
         lines.extend([

@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from pycasso.condense import condense, _extract_purpose_hints, _split_name
-from pycasso.parse import Entity, EntityType
+from pycasso.parse import Entity
 
 
 def test_condense_empty_entities():
@@ -12,73 +12,42 @@ def test_condense_empty_entities():
 def test_condense_basic():
     entities = [
         Entity(
-            entity_type=EntityType.CLASS,
+            entity_type="class",
             name="UserService",
-            mass=50,
-            complexity=3,
-            fingerprint=12345,
             file_path=Path("/repo/src/service.py"),
         ),
         Entity(
-            entity_type=EntityType.FUNCTION,
+            entity_type="function",
             name="get_user",
-            mass=20,
-            complexity=2,
-            fingerprint=67890,
             file_path=Path("/repo/src/service.py"),
-        ),
-        Entity(
-            entity_type=EntityType.LOOP,
-            name="loop_10",
-            mass=5,
-            complexity=1,
-            fingerprint=11111,
-            file_path=Path("/repo/src/utils.py"),
-        ),
-        Entity(
-            entity_type=EntityType.CONDITIONAL,
-            name="if_15",
-            mass=3,
-            complexity=1,
-            fingerprint=22222,
-            file_path=Path("/repo/src/utils.py"),
         ),
     ]
 
     result = condense(entities, Path("/repo"))
 
     assert "Repository: repo" in result
-    assert "Files: 2 Python files" in result
+    assert "Files: 1 Python files" in result
     assert "Classes (1): UserService" in result
     assert "Functions (1): get_user" in result
-    assert "Loops: 1" in result
-    assert "Conditionals: 1" in result
 
 
-def test_condense_shows_top_modules():
+def test_condense_shows_structure():
     entities = [
         Entity(
-            entity_type=EntityType.FUNCTION,
+            entity_type="function",
             name="complex_fn",
-            mass=100,
-            complexity=8,
-            fingerprint=12345,
             file_path=Path("/repo/complex.py"),
         ),
         Entity(
-            entity_type=EntityType.FUNCTION,
+            entity_type="function",
             name="simple_fn",
-            mass=10,
-            complexity=1,
-            fingerprint=67890,
             file_path=Path("/repo/simple.py"),
         ),
     ]
 
     result = condense(entities, Path("/repo"))
 
-    assert "complex.py (complexity: 8)" in result
-    assert "simple.py (complexity: 1)" in result
+    assert "Files: 2 Python files" in result
 
 
 def test_split_name_snake_case():
@@ -103,11 +72,8 @@ def test_extract_purpose_hints():
 def test_condense_limits_symbols():
     entities = [
         Entity(
-            entity_type=EntityType.FUNCTION,
-            name=f"func_{i}",
-            mass=10,
-            complexity=1,
-            fingerprint=i,
+            entity_type="function",
+            name=f"public_func_{i}",
             file_path=Path("/repo/main.py"),
         )
         for i in range(30)
