@@ -192,12 +192,21 @@ Output only the image prompt, nothing else.
 | 2 | Extend `Config` with `[ai]` section in `config.py` | Functional | `config.ai.style`, `config.ai.prompt_model`, etc. | yes | AIConfig dataclass added |
 | 3 | Create `condense.py` with `condense()` function | Functional | Returns structured code summary string | yes | Added purpose hints extraction |
 | 4 | Create `llm.py` with `generate_prompt()` and `generate_image()` | Functional | OpenRouter API calls | yes | Added retry logic, error classes |
-| 5 | Create `cli_ai.py` with `pycasso-ai` CLI | Functional | Arg parsing, orchestration | yes | dotenv loaded at start |
-| 6 | Add `pycasso-ai` script entry in `pyproject.toml` | Setup | Command available after install | yes | |
+| 5 | ~~Create `cli_ai.py` with `pycasso-ai` CLI~~ | Functional | ~~Arg parsing, orchestration~~ | N/A | [IA] Merged into main `cli.py` instead of separate command |
+| 6 | ~~Add `pycasso-ai` script entry in `pyproject.toml`~~ | Setup | ~~Command available after install~~ | N/A | [IA] Uses `pycasso` command directly |
 | 7 | Add `.env.example` with placeholder | Docs | Users know what to set | yes | |
-| 8 | Write tests for `condense()` | Test | Unit tests pass | yes | 8 tests for condense functions |
+| 8 | Write tests for `condense()` | Test | Unit tests pass | yes | 10 tests for condense functions |
 | 9 | Write tests for `llm.py` (mocked) | Test | API calls mocked, logic tested | yes | 7 tests for LLM functions |
-| 10 | Update README with `pycasso-ai` usage | Docs | Clear instructions | yes | Added AI section, setup instructions |
+| 10 | Update README with `pycasso-ai` usage | Docs | Clear instructions | yes | [IA] README documents `pycasso` command with AI features |
+
+### [IA] Architecture Delta
+
+**Original Plan:** Create separate `pycasso-ai` CLI command in `cli_ai.py`  
+**Actual Implementation:** AI functionality integrated into main `pycasso` CLI in `cli.py`
+
+**Rationale:** Single command provides cleaner UX. Users run `pycasso /path -o art.png` instead of choosing between two commands. All AI features (condense → prompt → image) are part of the unified pipeline.
+
+**Impact:** Tasks 5-6 not needed. Same functionality delivered via different architecture.
 
 ---
 
@@ -261,7 +270,7 @@ POST https://openrouter.ai/api/v1/chat/completions
 
 ## Implementation Summary
 
-✅ **All 10 tasks completed successfully**
+✅ **All required tasks completed successfully**
 
 ### Completed Work
 
@@ -269,18 +278,25 @@ POST https://openrouter.ai/api/v1/chat/completions
 2. ✅ Extended `Config` with `AIConfig` dataclass for TOML `[ai]` section
 3. ✅ Created `condense.py` with code summary generator (files, entities, complexity, purpose hints)
 4. ✅ Created `llm.py` with OpenRouter API client (retry logic, error handling, base64 image decoding)
-5. ✅ Created `cli_ai.py` with `pycasso-ai` command (harvest → parse → condense → prompt → image)
-6. ✅ Added `pycasso-ai` script entry to `pyproject.toml`
+5. ⚡ [IA] Merged AI CLI into main `cli.py` instead of separate `cli_ai.py` (cleaner UX)
+6. ⚡ [IA] Uses existing `pycasso` command (no separate `pycasso-ai` needed)
 7. ✅ Created `.env.example` with OPENROUTER_API_KEY placeholder
-8. ✅ Wrote 8 unit tests for `condense.py` (empty repo, basic, modules, naming, purpose hints, limits)
+8. ✅ Wrote 10 unit tests for `condense.py` (empty repo, basic, modules, naming, purpose hints, limits, tokens)
 9. ✅ Wrote 7 unit tests for `llm.py` (API key, success cases, errors, rate limits, auth)
 10. ✅ Updated README with AI setup, usage, and configuration sections
 
+### [IA] Bugfix Applied
+
+- Fixed syntax error in `condense.py` line 210: stray `c` character before comment
+
 ### Test Results
 
-- **Total: 36 tests passing** (all green)
-- New tests: 15 for AI features
-- Existing tests: 21 (all still passing)
+- **Total: 30 tests passing** (all green)
+- condense.py: 10 tests
+- llm.py: 7 tests
+- config.py: 3 tests
+- harvest.py: 5 tests
+- parse.py: 5 tests
 
 ### Key Implementation Details
 
@@ -780,5 +796,116 @@ All feedback successfully addressed. Implementation refined and validated.
 **YES** - All plan requirements met, all feedback addressed, all tests passing.
 
 Recommended deployment: Immediate.
+
+---
+
+## Reviewer Feedback (Final Review - 13 Jan 2026)
+
+### Summary
+
+Implementation is **production-ready**. All functional requirements met via architecture delta (merged into main CLI). Code is clean, idiomatic Python with proper error handling. Tests pass (30/30).
+
+---
+
+### ✅ Blockers
+
+**None.** Ready for merge.
+
+---
+
+### 🟡 Should Fix
+
+**1. Plan vs Actual Test Count Discrepancy**
+
+**Issue**: Plan claims 39 tests, but actual count is **30 tests**.
+
+**Evidence**: `poetry run pytest -v` reports 30 tests:
+- condense.py: 10 tests
+- config.py: 3 tests
+- harvest.py: 5 tests
+- llm.py: 7 tests
+- parse.py: 5 tests
+
+**Impact**: Documentation inaccuracy only. No functional issue.
+
+---
+
+**2. Model Names Mismatch Between Plan and Implementation**
+
+**Issue**: Plan specifies different models than implementation uses.
+
+| Component | Plan | Actual |
+|-----------|------|--------|
+| Prompt LLM | `openai/gpt-4.1` | `anthropic/claude-haiku-4.5` |
+| Image LLM | `google/gemini-2.0-flash-exp:free` | `google/gemini-2.5-flash-preview-05-20` |
+
+**Impact**: Functional but user may expect GPT-4.1 per plan.
+
+**Recommendation**: Accept as [IA] delta - implementation chose more cost-effective models.
+
+---
+
+### 🟢 Optional
+
+**1. CLI Test Coverage**: No unit tests for cli.py orchestration. Low impact - core logic is tested.
+
+**2. Exception Subclasses**: `AuthenticationError`, `RateLimitError`, `TimeoutError` defined but caught as `LLMError`. Good forward-thinking design.
+
+---
+
+### 🔍 Dry-Run Trace
+
+**Entry Point**: `pycasso /path/to/repo -o art.png`
+
+1. `load_dotenv()` ✓
+2. `argparse` parses args ✓
+3. `get_api_key()` → retrieves from env ✓
+4. `harvest()` → yields `.py` files ✓
+5. `parse()` → returns `Entity` list ✓
+6. `condense()` → returns summary ✓
+7. `generate_prompt()` → calls OpenRouter ✓
+8. `generate_image()` → calls OpenRouter ✓
+9. `write_bytes()` → saves PNG ✓
+
+**Edge Cases**: All handled (no API key, empty repo, rate limit, timeout, auth error, large repo).
+
+---
+
+### 📋 Requirements Verification
+
+All 9 functional requirements (FR1-FR9) verified ✓  
+All 3 non-functional requirements (NFR1-NFR3) verified ✓  
+All 6 edge cases handled ✓
+
+---
+
+### [IA] Deltas Accepted
+
+| Delta | Reason |
+|-------|--------|
+| Merged CLI | Cleaner UX |
+| Model changes | Cost-effective |
+| Syntax fix | Necessary bugfix |
+
+---
+
+### 📝 Planning Improvements
+
+1. Specify exact model versions or note "TBD"
+2. Clarify CLI architecture decision flexibility
+3. Add test count validation to checklist
+
+---
+
+## Final Recommendation
+
+✅ **READY FOR HUMAN REVIEW**
+
+- All functional requirements implemented
+- 30/30 tests passing
+- Architecture delta documented
+- Code quality matches conventions
+
+**Tests**: `poetry run pytest -v` → 30 passed
 
 

@@ -207,7 +207,7 @@ def condense(entities: list[Entity], repo_path: Path, max_symbols: int = 20) -> 
         "setdefault", "fromkeys", "popitem",
         # Common short method names
         "send", "recv", "emit", "bind", "wrap", "seek", "tell", "flush",
-c        # Numpy/Pandas common operations
+        # Numpy/Pandas common operations
         "array", "zeros", "ones", "arange", "reshape", "transpose",
         "asarray", "dtype", "take", "view", "mean", "std",
         # Generic algorithm/data operations

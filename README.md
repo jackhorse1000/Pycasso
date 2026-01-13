@@ -82,6 +82,21 @@ pycasso https://github.com/django/django --style "Abstract digital art" -v -o dj
 pycasso https://github.com/username/my-python-lib -o my-lib-art.png
 ```
 
+### Running the Web Server
+
+Start a Flask web server with a health endpoint:
+
+```bash
+pycasso-serve
+```
+
+The server runs on `http://127.0.0.1:5000`. Check the health endpoint:
+
+```bash
+curl http://127.0.0.1:5000/health
+# Returns: {"status": "ok"}
+```
+
 ## Configuration
 
 Create a `pycasso.toml` in your working directory to customise the output. It will be auto-discovered:
